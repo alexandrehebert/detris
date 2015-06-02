@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+    <title>Webillogic DETRIS</title>
+    
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+	<script src="j/jcanvas.min.js"></script>
+    <script src="j/snake.tools.js"></script>
+    
+    <script>
+	
+		var COLORS = [ 'green', 'purple', 'orange', 'blue', 'brown' ];
+		var SP = 16;
+		var X = 8;
+		var Y = 12;
+		var KEYSETS = [ 
+			$.ui.keyCode.LEFT, 
+			$.ui.keyCode.UP, 
+			$.ui.keyCode.RIGHT, 
+			$.ui.keyCode.DOWN,	// <^>v
+			81, 90, 68, 83,		// QZDS
+			100, 104, 102, 101,	// 4865
+			75, 79, 77, 76		// KOML
+		];
+		var DIRECTION = { LEFT: 0, UP: 1, RIGHT: 2, DOWN: 3 };
+		var DIRECTIONS = [ DIRECTION.RIGHT, DIRECTION.UP, DIRECTION.LEFT, DIRECTION.DOWN ];
+		
+        var players = [];
+
+		$(function() {
+			
+			$.jCanvas({
+				fromCenter: false,
+				cropFromCenter: false,
+				width: SP, height: SP,
+				sWidth: SP, sHeight: SP,
+				imageSmoothing: false,
+				cornerRadius: 4,
+				strokeStyle: "#BBB",
+				strokeWidth: 1,
+			});
+			
+			jQuery.fn.extend({
+				drawPiece: function(pixels, piece) {
+					var graphics = $(this);
+					return this.each(function() {
+						drawPiece(graphics, pixels, piece);
+					});
+				},
+				drawPixels: function(pixels) {
+					var graphics = $(this);
+					return this.each(function() {
+						drawPixels(graphics, pixels);
+					});
+				}
+			});
+			
+			$(document).keyup(function(e) {
+			
+				var player = players[0];
+				if (!player.alive) return;
+				
+				e.key = (e.keyCode || e.which);
+				
+				if (e.key == $.ui.keyCode.SPACE) {
+					
+					BIIIIIM(player);
+					
+				} else {
+				
+					var k = KEYSETS.indexOf(e.key);
+					if (k < 0) return;
+					var direction = k % 4;
+					
+					move(player, direction);
+				
+				}
+				
+			});
+			
+			/*var $piece = {};
+			$piece["a1"] = ;
+			// $piece["a2"] = new Piece({x:7,y:0,t:1});*/
+			
+			players.push({
+				pixels : initPixels([]),
+				piece : new Piece({x:3,y:0,t:1}),
+				graphics : initCanvas('canvas#detris-area'),
+				alive : true
+			});
+			
+			run();
+			
+		});
+		
+		function run() {
+			
+			drawCanvas(players[0]);
+			setInterval(step, 1000);
+			
+		}
+		
+		function move(player, direction) {
+		
+			var piece = player.piece;
+			var pixels = player.pixels;
+			
+			if (!piece) return;
+			
+			piece.move(pixels, direction);
+			drawCanvas(player);
+			
+		}
+		
+		function BIIIIIM(player) {
+		
+			var piece = player.piece;
+			var pixels = player.pixels;
+			
+			if (!piece) return;
+		
+			piece.bim(pixels);
+			drawCanvas(player);
+		
+		}
+		
+		function step() {
+			
+			$.each(players, function($i, player) {
+				
+				if (!player.alive) return;
+				
+				//try {
+			
+				var piece = player.piece;
+				var pixels = player.pixels;
+				
+				if (!piece) {
+					player.piece = new Piece({x:3,y:0,t:1});
+					if (player.piece.dead(pixels)) {
+						player.alive = false;
+						// throw "game over";
+					}
+				}
+				else if (piece.b || !piece.fall(pixels)) {
+					
+					$.each(piece.pixels(pixels), function(i, pixel) {
+						var $y = pixel.y;
+						var $row = pixels[$y];
+						$row[pixel.x].t = 1;
+						$row[pixel.x].c = piece.c;
+						$row.fillCount++;
+						if ($row.fillCount == X) {
+							$.each($row, function($i, $p) {
+								$p.t = 0;
+								$p.c = false;
+							});
+							$row.fillCount = 0;
+							yMove($y);
+						}
+					});
+					delete piece;
+					player.piece = false;
+					
+					if (piece.b) {
+						player.piece = new Piece({x:3,y:0,t:rand(3)});
+					}
+					
+				}
+				
+				//} catch (e) {
+					
+				//	console.log(e);
+				//	player.alive = false;
+					
+				//}
+			
+				drawCanvas(player);
+				
+			});
+			
+		}
+		
+		function drawCanvas(player) {
+			
+			var piece = player.piece;
+			var pixels = player.pixels;
+			var graphics = player.graphics;
+		
+			graphics
+			.clearCanvas({
+				width: parseInt(graphics.attr('width')),
+				height: parseInt(graphics.attr('height')),
+			})
+			.drawPixels(pixels)
+			.drawPiece(pixels, piece);
+			
+		}
+		
+		function initCanvas(canvas) {
+		
+			var graphics = $(canvas);
+			
+			graphics
+			// init size of canvas 
+			.attr("width", X * SP)
+			.attr("height", Y * SP)
+			.css('width', X * SP + "px")
+			.css('height', Y * SP + "px")
+			// clear canvas (if necessary)
+			.clearCanvas({
+				width: parseInt(graphics.attr('width')),
+				height: parseInt(graphics.attr('height')),
+			});
+			
+			return graphics;
+			
+		}
+		
+		function initPixels(pixels) {
+		
+			// TODO prise en compte des pixels précédents
+			pixels.length;
+			
+			for (var $y=0; $y<Y; $y++) {
+				var row = [];
+				for (var $x=0; $x<X; $x++)
+					row[$x] = new Pixel({
+						x : $x, y : $y, 
+						t : /* ($y >= (Y-2) && $x >= 5 ? 1 : 0) */ 0, 
+						c : COLORS[rand(COLORS.length)]
+					});
+				row.fillCount = 0;
+				pixels[$y] = row;
+			}
+			
+			return pixels;
+		
+		}
+		
+		function drawPiece(graphics, pixels, piece) {
+		
+			if (!piece) return;
+			
+			$.each(piece.pixels(pixels), function($j, pixel) {
+				
+				var $x = pixel.x, $y = yView(pixel.y);
+				graphics.drawRect({ 
+					fillStyle: piece.c,
+					width: SP-2, height: SP-2,
+					y: ($y * SP)+1, x: ($x * SP)+1
+				});
+				
+			});
+			
+		}
+		
+		function drawPixels(graphics, pixels) {
+			
+			// var rowFull = true;
+			$.each(pixels, function($yy, row) {
+				var $y = yView($yy);
+				$.each(row, function($x, pixel) {
+					
+					graphics.drawRect({ 
+						fillStyle: !pixel.is(0) ? pixel.c : 'transparent',
+						width: SP-2, height: SP-2,
+						y: ($y * SP)+1, x: ($x * SP)+1
+					});
+					
+					if (pixel.is(2)) {
+						graphics.drawText({
+							fillStyle: "transparent",
+							strokeStyle: "white",
+							strokeWidth: 1,
+							y: ($y * SP)+2, x: ($x * SP)+8,
+							fontSize: 12,
+							fontFamily: "Courier new",
+							text: "B"
+						});
+					}/* else if (pixel.is(0)) {
+						rowFull = false;
+					}*/
+					
+				});
+			});
+			
+		}
+		
+		var PIECES = [ [ [0,0] ],
+					   [ [0,-1],[0,0],[1,0] ],
+					   [ [0,-1],[0,0],[0,1] ] ];
+		
+		function Piece($params) {
+			var self = this;
+			self.x = $params.x; // virtual x pos
+			self.y = $params.y; // virtual y pos
+			self.d = $params.d; // direction
+			self.t = $params.t; // type
+			self.c = COLORS[rand(COLORS.length)];
+			self.is = function(type) {return type==self.t};
+			self.p = []; // piece's pixels
+			self.b = false; // bim state
+			self.pixels = function(pixels) {
+				if (self.p.length != 0) return self.p;
+				for (var $i in PIECES[self.t]) {
+					var $p = PIECES[self.t][parseInt($i)];
+					self.p.push(pixels[y($p[1] + self.y + 1)][$p[0] + self.x]);
+				}
+				self.rotate(pixels, self.d);
+				return self.p;
+			};
+			self.move = function(pixels, direction) {
+				if (self.b) return;
+				var $sticked = false;
+				var $dirX = +1;
+				switch(direction) {
+				case DIRECTION.LEFT: // go to the left
+					$dirX = -1;
+				case DIRECTION.RIGHT: // go to the right
+					if ($dirX > 0 && self.x < X-1 || self.x) {
+						var $p = [];
+						$.each(self.pixels(pixels), function($i, pixel) {
+							var $pixel = pixels[y(yView(pixel.y))][pixel.x + $dirX];
+							if (!$pixel || !$pixel.is(0)) {
+								$sticked = true;
+								return false;
+							}
+							$p.push($pixel);
+						});
+						if (!$sticked) {
+							self.x += $dirX;
+							self.p = $p;
+						}
+					}
+					break;
+				case DIRECTION.DOWN: // speed up fall
+					self.fall(pixels);
+					break;
+				case DIRECTION.UP: // rotate piece
+					self.rotate(pixels, 1);
+					break;
+				}
+				return $sticked;
+			};
+			self.rotate = function(pixels, /*direction*/it) {
+				if (!it || it <= 0 || self.p.length == 1) return self.p;
+				self.d = (self.d + 1) % 4;
+				var $p = [];
+				for (var $i in self.p) {
+					var $pixel = self.p[$i];
+					var $y1 = yView($pixel.y), $x1 = $pixel.x;
+					var $x2 = self.x + self.y - $y1 + 1;
+					var $y2 = y(self.y - self.x + $x1);
+					if ($y2<0 || $y2>=Y || $x2<0 || $x2>=X) return self.p;
+					$pixel = pixels[$y2][$x2];
+					if (!$pixel.is(0)) return self.p; // prevent from invalid move
+					$p.push($pixel);
+				}
+				self.p = $p;
+				return self.rotate(pixels, it-1);
+			};
+			self.bim = function(pixels) {
+				while (self.fall(pixels));
+				self.b = true;
+			};
+			self.fall = function(pixels) {
+				var $fallable = self.fallable(pixels);
+				if ($fallable) {
+					self.y++;
+					self.p = $fallable;
+				}
+				return $fallable !== false;
+			};
+			self.fallable = function(pixels) {
+				var $sticked = false;
+				var $p = [];
+				$.each(self.pixels(pixels), function($i, pixel) {
+					var $y = yView(pixel.y)+1, $x = pixel.x;
+					if ($y >= Y) {
+						$sticked = true;
+						return false;
+					}
+					var $pixel = pixels[y($y)][$x];
+					if (yView(pixel.y)+1 >= pixels.length || !$pixel.is(0)) {
+						$sticked = true;
+						return false;
+					}
+					$p.push($pixel);
+				});
+				if ($sticked) $p = false;
+				return $p;
+			};
+			self.dead = function(pixels) {
+				var $dead = false;
+				$.each(self.pixels(pixels), function($i, pixel) {
+					if (!pixel.is(0)) {
+						$dead = true;
+						return false;
+					}
+				});
+				return $dead;
+			};
+		}
+		
+		function Pixel($params) {
+			var self = this;
+			self.x = $params.x;
+			self.y = $params.y;
+			self.t = $params.t;
+			self.c = $params.c;
+			self.is = function(type) {return type==self.t};
+		}
+		
+		var Ys = [ 0,1,2,3,4,5,6,7,8,9,10,11 ]; // TODO fill at startup with the right length
+		function y($y) {
+			return Ys.indexOf($y);
+		}
+		function yView($y) {
+			return Ys[$y];
+		}
+		function yMove($y) {
+			var $t = Ys[$y];
+			for (var $i=0; $i<Y; $i++)
+				if (Ys[$i] < $t)
+					Ys[$i]++;
+			Ys[$y] = 0;
+		}
+        
+    </script>
+    
+	<style type="text/css">
+	
+		canvas#detris-area {
+		
+			z-index: 100;
+			width: 160px; 
+			height: 160px; 
+			background-color: transparent; 
+			border: 1px solid transparent;
+			margin: 0; padding: 0;
+			image-rendering: optimizeSpeed;
+			image-rendering: -moz-crisp-edges;
+			image-rendering: -webkit-optimize-contrast;
+			image-rendering: -o-crisp-edges;
+			image-rendering: optimize-contrast;
+			-ms-interpolation-mode: nearest-neighbor;
+			
+		}
+	
+	</style>
+	
+</head>
+
+<body>
+
+    <div id="body">
+		
+		<canvas id="detris-area" width="160" height="160"></canvas>
+	
+	</div>
+
+</body>
+
+</html>
